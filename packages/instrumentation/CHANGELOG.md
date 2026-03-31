@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/open-telemetry/opentelemetry-browser/compare/browser-instrumentation-v0.2.0...browser-instrumentation-v0.2.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* **deps:** update dependencies ([#220](https://github.com/open-telemetry/opentelemetry-browser/issues/220)) ([3901cce](https://github.com/open-telemetry/opentelemetry-browser/commit/3901ccee84074450409d0c9c3d87ff8f798f839b))
+* **deps:** update opentelemetry to ^0.214.0 ([#222](https://github.com/open-telemetry/opentelemetry-browser/issues/222)) ([cf8e37e](https://github.com/open-telemetry/opentelemetry-browser/commit/cf8e37ee2a5431a01206014400b36c1fa3874f24))
+
 ## [0.2.0](https://github.com/open-telemetry/opentelemetry-browser/compare/browser-instrumentation-v0.1.0...browser-instrumentation-v0.2.0) (2026-03-19)
 
 
