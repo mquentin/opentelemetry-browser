@@ -275,8 +275,10 @@ Object containing configuraiton options for the HTTP log record exporter. These 
 Note: you can pass this option to `startBrowserSdk` if you want to apply the same to all signals. If
 the option is defined at the top level and within the signal configuration the later wins.
 
-Note: an invalid `url` stops the SDK from starting — it logs a `diag.error` and returns a no-op SDK
-instead of starting and silently dropping the telemetry it cannot export.
+Note: an invalid `url` stops the affected signal from starting — it logs a `diag.error` and skips
+that signal instead of starting and silently dropping the telemetry it cannot export. When using
+`startBrowserSdk`, other signals with a valid `url` still start; the combined SDK only becomes a
+no-op when no signal can export.
 
 #### logRecordLimits
 
@@ -314,8 +316,10 @@ Object containing configuraiton options for the HTTP span exporter. These option
 Note: you can pass this option to `startBrowserSdk` if you want to apply the same to all signals. If
 the option is defined at the top level and within the `traces` signal configuration the later wins.
 
-Note: an invalid `url` stops the SDK from starting — it logs a `diag.error` and returns a no-op SDK
-instead of starting and silently dropping the telemetry it cannot export.
+Note: an invalid `url` stops the affected signal from starting — it logs a `diag.error` and skips
+that signal instead of starting and silently dropping the telemetry it cannot export. When using
+`startBrowserSdk`, other signals with a valid `url` still start; the combined SDK only becomes a
+no-op when no signal can export.
 
 #### spanLimits
 
