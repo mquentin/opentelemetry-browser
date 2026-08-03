@@ -104,13 +104,17 @@ describe('startBrowserSdk', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('should not start for an invalid signal-specific URL even with custom processors', async () => {
+  it('should skip only the signal with an invalid URL even with custom processors', async () => {
     // Arrange: the traces signal provides its own processors and an invalid
-    // export URL — the scenario the sandbox used to guard against by hand.
+    // export URL. Traces must not start, but logs (inheriting the default root
+    // endpoint) should still start and export.
     let exportCalled = false;
 
     // Act
     browserSdk = startBrowserSdk({
+      batchProcessorConfig: {
+        scheduledDelayMillis: SCHEDULE_DELAY,
+      },
       traces: {
         processors: [
           new SimpleSpanProcessor({
@@ -127,11 +131,60 @@ describe('startBrowserSdk', () => {
     trace.getTracer('traces-sdk-test').startSpan('test').end();
     await new Promise((r) => setTimeout(r, SCHEDULE_DELAY + 5));
 
-    // Assert
+    // Assert: traces did not start, logs did
     expect(diagErrorSpy).toHaveBeenCalled();
-    expect(diagErrorSpy.mock.lastCall?.[0]).toMatch(/Traces SDK won't start/);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(
+      diagErrorSpy.mock.calls.some((args) =>
+        /Traces SDK won't start/.test(String(args[0])),
+      ),
+    ).toBe(true);
     expect(exportCalled).toStrictEqual(false);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(
+      fetchSpy.mock.calls.find(
+        (args) => args[0] === 'http://localhost:4318/v1/logs',
+      ),
+    ).toBeDefined();
+  });
+
+  it('should start only logs when the traces URL is invalid', async () => {
+    // Act
+    browserSdk = startBrowserSdk({
+      batchProcessorConfig: {
+        scheduledDelayMillis: SCHEDULE_DELAY,
+      },
+      logs: { exportConfig: { url: 'http://otlp-signal-endpoint:4318' } },
+      traces: { exportConfig: { url: 'this_is_not_an_URL' } },
+    });
+    logs.getLogger('logs-sdk-test').emit({ eventName: 'test' });
+    trace.getTracer('traces-sdk-test').startSpan('test').end();
+    await new Promise((r) => setTimeout(r, SCHEDULE_DELAY + 5));
+
+    // Assert: only the logs endpoint is hit
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      'http://otlp-signal-endpoint:4318/',
+    );
+  });
+
+  it('should start only traces when the logs URL is invalid', async () => {
+    // Act
+    browserSdk = startBrowserSdk({
+      batchProcessorConfig: {
+        scheduledDelayMillis: SCHEDULE_DELAY,
+      },
+      logs: { exportConfig: { url: 'this_is_not_an_URL' } },
+      traces: { exportConfig: { url: 'http://otlp-signal-endpoint:4318' } },
+    });
+    logs.getLogger('logs-sdk-test').emit({ eventName: 'test' });
+    trace.getTracer('traces-sdk-test').startSpan('test').end();
+    await new Promise((r) => setTimeout(r, SCHEDULE_DELAY + 5));
+
+    // Assert: only the traces endpoint is hit
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      'http://otlp-signal-endpoint:4318/',
+    );
   });
 
   it('should use the default configuration for batch processor', async () => {

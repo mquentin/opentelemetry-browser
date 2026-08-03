@@ -95,35 +95,43 @@ export function combineSdks<T extends SdkFactories>(
 
     const sdks: WebSdk[] = [];
 
-    // Validate every export URL up-front and bail out on the first invalid one.
-    // Doing this before starting any signal SDK avoids a partial start where one
-    // signal's provider is registered while the other refuses to start.
-    const endpointUrl = parseExportUrl(
-      rootConfig.exportConfig?.url || DEFAULT_OTLP_ENDPOINT,
-    );
-    if (!endpointUrl) {
-      // TODO: need to discuss with the SIG if it's better to return `undefined`
-      return NOOP_SDK;
-    }
     // Resolve each signal's config once so it can be validated here and reused
     // when starting the signals below.
     const logsConfig: LogsConfig = config?.logs || {};
     const tracesConfig: TracesConfig = config?.traces || {};
-    const signalExportUrls: [string, string | undefined][] = [
-      ['Logs SDK', logsConfig.exportConfig?.url],
-      ['Traces SDK', tracesConfig.exportConfig?.url],
-    ];
-    for (const [scope, signalUrl] of signalExportUrls) {
-      // Only bail out when a signal explicitly sets an invalid URL. An unset
-      // signal URL inherits the (already validated) root endpoint, so it must
-      // not block the SDK from starting.
-      if (signalUrl && !parseExportUrl(signalUrl, scope)) {
-        return NOOP_SDK;
-      }
+
+    // Validate the shared root endpoint. Signals that do not set their own
+    // export URL inherit this one (with a signal-specific path appended), so
+    // its validity gates only those signals.
+    const endpointUrl = parseExportUrl(
+      rootConfig.exportConfig?.url || DEFAULT_OTLP_ENDPOINT,
+    );
+
+    // Validate each signal independently. A signal can start when its own
+    // explicit URL is valid, or — if it has none — when the shared root
+    // endpoint is valid. This lets one signal start even when the other's URL
+    // is broken, rather than failing the whole SDK on the first invalid URL.
+    const isSignalUrlValid = (scope: string, signalUrl?: string): boolean =>
+      signalUrl
+        ? Boolean(parseExportUrl(signalUrl, scope))
+        : Boolean(endpointUrl);
+    const isLogsUrlValid = isSignalUrlValid(
+      'Logs SDK',
+      logsConfig.exportConfig?.url,
+    );
+    const isTracesUrlValid = isSignalUrlValid(
+      'Traces SDK',
+      tracesConfig.exportConfig?.url,
+    );
+
+    // Only bail out entirely when no signal can export.
+    if (!isLogsUrlValid && !isTracesUrlValid) {
+      // TODO: need to discuss with the SIG if it's better to return `undefined`
+      return NOOP_SDK;
     }
 
     // Start logs
-    if (factories.logs) {
+    if (factories.logs && isLogsUrlValid) {
       const isGenericEndpoint = !logsConfig.exportConfig?.url;
 
       // Propagate root configs to signal configs only when the signal does not
@@ -140,7 +148,7 @@ export function combineSdks<T extends SdkFactories>(
       }
 
       // Set the path if endpoint comes from general config
-      if (isGenericEndpoint && logsConfig.exportConfig) {
+      if (isGenericEndpoint && endpointUrl && logsConfig.exportConfig) {
         endpointUrl.pathname = '/v1/logs';
         logsConfig.exportConfig.url = endpointUrl.href;
       }
@@ -149,7 +157,7 @@ export function combineSdks<T extends SdkFactories>(
     }
 
     // Start traces
-    if (factories.traces) {
+    if (factories.traces && isTracesUrlValid) {
       const isGenericEndpoint = !tracesConfig.exportConfig?.url;
 
       // Propagate root configs to signal configs only when the signal does not
@@ -166,7 +174,7 @@ export function combineSdks<T extends SdkFactories>(
       }
 
       // Set the path if endpoint comes from general config
-      if (isGenericEndpoint && tracesConfig.exportConfig) {
+      if (isGenericEndpoint && endpointUrl && tracesConfig.exportConfig) {
         endpointUrl.pathname = '/v1/traces';
         tracesConfig.exportConfig.url = endpointUrl.href;
       }
